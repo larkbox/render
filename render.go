@@ -26,13 +26,12 @@ package render
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
 	"html/template"
 	"io"
-	"io/ioutil"
 	"net/http"
-	"os"
+	"path"
 	"path/filepath"
+	"strings"
 
 	"github.com/codegangsta/martini"
 )
@@ -44,13 +43,6 @@ const (
 	ContentHTML    = "text/html"
 	defaultCharset = "UTF-8"
 )
-
-// Included helper functions for use when rendering html
-var helperFuncs = template.FuncMap{
-	"yield": func() (string, error) {
-		return "", fmt.Errorf("yield called with no layout defined")
-	},
-}
 
 // Render is a service that can be injected into a Martini handler. Render provides functions for easily writing JSON and
 // HTML templates out to a http Response.
@@ -108,17 +100,11 @@ type HTMLOptions struct {
 func Renderer(options ...Options) martini.Handler {
 	opt := prepareOptions(options)
 	cs := prepareCharset(opt.Charset)
-	t := compile(opt)
+	tmpls := make(map[string]*template.Template)
+	// t := compile(opt)
 	return func(res http.ResponseWriter, req *http.Request, c martini.Context) {
-		var tc *template.Template
-		if martini.Env == martini.Dev {
-			// recompile for easy development
-			tc = compile(opt)
-		} else {
-			// use a clone of the initial template
-			tc, _ = t.Clone()
-		}
-		c.MapTo(&renderer{res, req, tc, opt, cs}, (*Render)(nil))
+
+		c.MapTo(&renderer{res, req, tmpls, opt, cs}, (*Render)(nil))
 	}
 }
 
@@ -147,52 +133,52 @@ func prepareOptions(options []Options) Options {
 	return opt
 }
 
-func compile(options Options) *template.Template {
-	dir := options.Directory
-	t := template.New(dir)
-	t.Delims(options.Delims.Left, options.Delims.Right)
-	// parse an initial template in case we don't have any
-	template.Must(t.Parse("Martini"))
+// func compile(options Options) *template.Template {
+// 	dir := options.Directory
+// 	t := template.New(dir)
+// 	t.Delims(options.Delims.Left, options.Delims.Right)
+// 	// parse an initial template in case we don't have any
+// 	template.Must(t.Parse("Martini"))
 
-	filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
-		r, err := filepath.Rel(dir, path)
-		if err != nil {
-			return err
-		}
+// 	filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
+// 		r, err := filepath.Rel(dir, path)
+// 		if err != nil {
+// 			return err
+// 		}
 
-		ext := filepath.Ext(r)
-		for _, extension := range options.Extensions {
-			if ext == extension {
+// 		ext := filepath.Ext(r)
+// 		for _, extension := range options.Extensions {
+// 			if ext == extension {
 
-				buf, err := ioutil.ReadFile(path)
-				if err != nil {
-					panic(err)
-				}
+// 				buf, err := ioutil.ReadFile(path)
+// 				if err != nil {
+// 					panic(err)
+// 				}
 
-				name := (r[0 : len(r)-len(ext)])
-				tmpl := t.New(filepath.ToSlash(name))
+// 				name := (r[0 : len(r)-len(ext)])
+// 				tmpl := t.New(filepath.ToSlash(name))
 
-				// add our funcmaps
-				for _, funcs := range options.Funcs {
-					tmpl.Funcs(funcs)
-				}
+// 				// add our funcmaps
+// 				for _, funcs := range options.Funcs {
+// 					tmpl.Funcs(funcs)
+// 				}
 
-				// Bomb out if parse fails. We don't want any silent server starts.
-				template.Must(tmpl.Funcs(helperFuncs).Parse(string(buf)))
-				break
-			}
-		}
+// 				// Bomb out if parse fails. We don't want any silent server starts.
+// 				template.Must(tmpl.Funcs(helperFuncs).Parse(string(buf)))
+// 				break
+// 			}
+// 		}
 
-		return nil
-	})
+// 		return nil
+// 	})
 
-	return t
-}
+// 	return t
+// }
 
 type renderer struct {
 	http.ResponseWriter
 	req             *http.Request
-	t               *template.Template
+	tmpls           map[string]*template.Template
 	opt             Options
 	compiledCharset string
 }
@@ -216,15 +202,42 @@ func (r *renderer) JSON(status int, v interface{}) {
 	r.Write(result)
 }
 
+// r.HTML(200, "work", "jeremy")
 func (r *renderer) HTML(status int, name string, binding interface{}, htmlOpt ...HTMLOptions) {
 	opt := r.prepareHTMLOptions(htmlOpt)
-	// assign a layout if there is one
+	dir := r.opt.Directory
+
+	paths := make([]string, 0)
+
 	if len(opt.Layout) > 0 {
-		r.addYield(name, binding)
-		name = opt.Layout
+		fulllayout := path.Clean(filepath.ToSlash(path.Join(dir, opt.Layout)))
+		paths = append(paths, fulllayout)
 	}
 
-	out, err := r.execute(name, binding)
+	fullname := path.Clean(filepath.ToSlash(path.Join(dir, name)))
+	paths = append(paths, fullname)
+
+	key := strings.Join(paths, "_")
+	t, ok := r.tmpls[key]
+	if !ok {
+		// 设置分隔符
+		t.Delims(r.opt.Delims.Left, r.opt.Delims.Right)
+
+		// 添加options中的funcs
+		for _, funcs := range r.opt.Funcs {
+			t.Funcs(funcs)
+		}
+
+		t = template.Must(t.ParseFiles(paths...))
+
+		//生产上将编译好的template缓存起来
+		if martini.Env == martini.Prod {
+			r.tmpls[key] = t
+		}
+	}
+
+	buf := new(bytes.Buffer)
+	err := t.Execute(buf, binding)
 	if err != nil {
 		http.Error(r, err.Error(), http.StatusInternalServerError)
 		return
@@ -233,7 +246,7 @@ func (r *renderer) HTML(status int, name string, binding interface{}, htmlOpt ..
 	// template rendered fine, write out the result
 	r.Header().Set(ContentType, ContentHTML+r.compiledCharset)
 	r.WriteHeader(status)
-	io.Copy(r, out)
+	io.Copy(r, buf)
 }
 
 // Error writes the given HTTP status to the current ResponseWriter
@@ -248,26 +261,6 @@ func (r *renderer) Redirect(location string, status ...int) {
 	}
 
 	http.Redirect(r, r.req, location, code)
-}
-
-func (r *renderer) Template() *template.Template {
-	return r.t
-}
-
-func (r *renderer) execute(name string, binding interface{}) (*bytes.Buffer, error) {
-	buf := new(bytes.Buffer)
-	return buf, r.t.ExecuteTemplate(buf, name, binding)
-}
-
-func (r *renderer) addYield(name string, binding interface{}) {
-	funcs := template.FuncMap{
-		"yield": func() (template.HTML, error) {
-			buf, err := r.execute(name, binding)
-			// return safe html here since we are rendering our own template
-			return template.HTML(buf.String()), err
-		},
-	}
-	r.t.Funcs(funcs)
 }
 
 func (r *renderer) prepareHTMLOptions(htmlOpt []HTMLOptions) HTMLOptions {
