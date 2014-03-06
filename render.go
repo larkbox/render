@@ -101,9 +101,7 @@ func Renderer(options ...Options) martini.Handler {
 	opt := prepareOptions(options)
 	cs := prepareCharset(opt.Charset)
 	tmpls := make(map[string]*template.Template)
-	// t := compile(opt)
 	return func(res http.ResponseWriter, req *http.Request, c martini.Context) {
-
 		c.MapTo(&renderer{res, req, tmpls, opt, cs}, (*Render)(nil))
 	}
 }
@@ -132,48 +130,6 @@ func prepareOptions(options []Options) Options {
 
 	return opt
 }
-
-// func compile(options Options) *template.Template {
-// 	dir := options.Directory
-// 	t := template.New(dir)
-// 	t.Delims(options.Delims.Left, options.Delims.Right)
-// 	// parse an initial template in case we don't have any
-// 	template.Must(t.Parse("Martini"))
-
-// 	filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
-// 		r, err := filepath.Rel(dir, path)
-// 		if err != nil {
-// 			return err
-// 		}
-
-// 		ext := filepath.Ext(r)
-// 		for _, extension := range options.Extensions {
-// 			if ext == extension {
-
-// 				buf, err := ioutil.ReadFile(path)
-// 				if err != nil {
-// 					panic(err)
-// 				}
-
-// 				name := (r[0 : len(r)-len(ext)])
-// 				tmpl := t.New(filepath.ToSlash(name))
-
-// 				// add our funcmaps
-// 				for _, funcs := range options.Funcs {
-// 					tmpl.Funcs(funcs)
-// 				}
-
-// 				// Bomb out if parse fails. We don't want any silent server starts.
-// 				template.Must(tmpl.Funcs(helperFuncs).Parse(string(buf)))
-// 				break
-// 			}
-// 		}
-
-// 		return nil
-// 	})
-
-// 	return t
-// }
 
 type renderer struct {
 	http.ResponseWriter
