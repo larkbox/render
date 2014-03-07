@@ -1,3 +1,3 @@
-another head
-{{ yield }}
-another foot
+another{{template "header" .}}
+another{{template "content" .}}
+another{{template "footer" .}}

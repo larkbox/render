@@ -61,7 +61,27 @@ func Test_Render_Indented_JSON(t *testing.T) {
 }`)
 }
 
-func Test_Render_Bad_HTML(t *testing.T) {
+// func Test_Render_Bad_HTML(t *testing.T) {
+// 	m := martini.Classic()
+// 	m.Use(Renderer(Options{
+// 		Directory: "fixtures/basic",
+// 	}))
+
+// 	// routing
+// 	m.Get("/foobar", func(r Render) {
+// 		r.HTML(200, "nope.tmpl", nil)
+// 	})
+
+// 	res := httptest.NewRecorder()
+// 	req, _ := http.NewRequest("GET", "/foobar", nil)
+
+// 	m.ServeHTTP(res, req)
+
+// 	expect(t, res.Code, 500)
+// 	// expect(t, res.Body.String(), "html/template: \"nope\" is undefined\n")
+// }
+
+func Test_Render_NO_LAYOUT_HTML(t *testing.T) {
 	m := martini.Classic()
 	m.Use(Renderer(Options{
 		Directory: "fixtures/basic",
@@ -69,27 +89,7 @@ func Test_Render_Bad_HTML(t *testing.T) {
 
 	// routing
 	m.Get("/foobar", func(r Render) {
-		r.HTML(200, "nope", nil)
-	})
-
-	res := httptest.NewRecorder()
-	req, _ := http.NewRequest("GET", "/foobar", nil)
-
-	m.ServeHTTP(res, req)
-
-	expect(t, res.Code, 500)
-	expect(t, res.Body.String(), "html/template: \"nope\" is undefined\n")
-}
-
-func Test_Render_HTML(t *testing.T) {
-	m := martini.Classic()
-	m.Use(Renderer(Options{
-		Directory: "fixtures/basic",
-	}))
-
-	// routing
-	m.Get("/foobar", func(r Render) {
-		r.HTML(200, "hello", "jeremy")
+		r.HTML(200, "hello.tmpl", "jeremy")
 	})
 
 	res := httptest.NewRecorder()
@@ -100,28 +100,6 @@ func Test_Render_HTML(t *testing.T) {
 	expect(t, res.Code, 200)
 	expect(t, res.Header().Get(ContentType), ContentHTML+"; charset=UTF-8")
 	expect(t, res.Body.String(), "<h1>Hello jeremy</h1>\n")
-}
-
-func Test_Render_Extensions(t *testing.T) {
-	m := martini.Classic()
-	m.Use(Renderer(Options{
-		Directory:  "fixtures/basic",
-		Extensions: []string{".tmpl", ".html"},
-	}))
-
-	// routing
-	m.Get("/foobar", func(r Render) {
-		r.HTML(200, "hypertext", nil)
-	})
-
-	res := httptest.NewRecorder()
-	req, _ := http.NewRequest("GET", "/foobar", nil)
-
-	m.ServeHTTP(res, req)
-
-	expect(t, res.Code, 200)
-	expect(t, res.Header().Get(ContentType), ContentHTML+"; charset=UTF-8")
-	expect(t, res.Body.String(), "Hypertext!\n")
 }
 
 func Test_Render_Funcs(t *testing.T) {
@@ -140,7 +118,7 @@ func Test_Render_Funcs(t *testing.T) {
 
 	// routing
 	m.Get("/foobar", func(r Render) {
-		r.HTML(200, "index", "jeremy")
+		r.HTML(200, "index.tmpl", "jeremy")
 	})
 
 	res := httptest.NewRecorder()
@@ -155,12 +133,12 @@ func Test_Render_Layout(t *testing.T) {
 	m := martini.Classic()
 	m.Use(Renderer(Options{
 		Directory: "fixtures/basic",
-		Layout:    "layout",
+		Layout:    "layout.tmpl",
 	}))
 
 	// routing
 	m.Get("/foobar", func(r Render) {
-		r.HTML(200, "content", "jeremy")
+		r.HTML(200, "content.tmpl", "jeremy")
 	})
 
 	res := httptest.NewRecorder()
@@ -168,18 +146,19 @@ func Test_Render_Layout(t *testing.T) {
 
 	m.ServeHTTP(res, req)
 
-	expect(t, res.Body.String(), "head\n<h1>jeremy</h1>\n\nfoot\n")
+	expect(t, res.Body.String(), "\n\theader\n\n\tcontent\n\n\tfooter\n")
 }
 
 func Test_Render_Nested_HTML(t *testing.T) {
 	m := martini.Classic()
 	m.Use(Renderer(Options{
 		Directory: "fixtures/basic",
+		Layout:    "layout.tmpl",
 	}))
 
 	// routing
 	m.Get("/foobar", func(r Render) {
-		r.HTML(200, "admin/index", "jeremy")
+		r.HTML(200, "admin/index.tmpl", "jeremy")
 	})
 
 	res := httptest.NewRecorder()
@@ -189,7 +168,7 @@ func Test_Render_Nested_HTML(t *testing.T) {
 
 	expect(t, res.Code, 200)
 	expect(t, res.Header().Get(ContentType), ContentHTML+"; charset=UTF-8")
-	expect(t, res.Body.String(), "<h1>Admin jeremy</h1>\n")
+	expect(t, res.Body.String(), "\n\theader-admin\n\n\tcontent-admin\n\n\tfooter-admin\n")
 }
 
 func Test_Render_Delimiters(t *testing.T) {
@@ -201,7 +180,7 @@ func Test_Render_Delimiters(t *testing.T) {
 
 	// routing
 	m.Get("/foobar", func(r Render) {
-		r.HTML(200, "delims", "jeremy")
+		r.HTML(200, "delims.tmpl", "jeremy")
 	})
 
 	res := httptest.NewRecorder()
@@ -287,7 +266,7 @@ func Test_Render_Default_Charset_HTML(t *testing.T) {
 
 	// routing
 	m.Get("/foobar", func(r Render) {
-		r.HTML(200, "hello", "jeremy")
+		r.HTML(200, "hello.tmpl", "jeremy")
 	})
 
 	res := httptest.NewRecorder()
@@ -306,13 +285,13 @@ func Test_Render_Override_Layout(t *testing.T) {
 	m := martini.Classic()
 	m.Use(Renderer(Options{
 		Directory: "fixtures/basic",
-		Layout:    "layout",
+		Layout:    "layout.tmpl",
 	}))
 
 	// routing
 	m.Get("/foobar", func(r Render) {
-		r.HTML(200, "content", "jeremy", HTMLOptions{
-			Layout: "another_layout",
+		r.HTML(200, "content.tmpl", "jeremy", HTMLOptions{
+			Layout: "another_layout.tmpl",
 		})
 	})
 
@@ -323,7 +302,7 @@ func Test_Render_Override_Layout(t *testing.T) {
 
 	expect(t, res.Code, 200)
 	expect(t, res.Header().Get(ContentType), ContentHTML+"; charset=UTF-8")
-	expect(t, res.Body.String(), "another head\n<h1>jeremy</h1>\n\nanother foot\n")
+	expect(t, res.Body.String(), "another\n\theader\n\nanother\n\tcontent\n\nanother\n\tfooter\n\n")
 }
 
 func Test_Render_NoRace(t *testing.T) {
@@ -335,7 +314,7 @@ func Test_Render_NoRace(t *testing.T) {
 
 	// routing
 	m.Get("/foobar", func(r Render) {
-		r.HTML(200, "hello", "world")
+		r.HTML(200, "hello.tmpl", "world")
 	})
 
 	done := make(chan bool)

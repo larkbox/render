@@ -28,9 +28,9 @@ import (
 	"encoding/json"
 	"html/template"
 	"io"
+	"io/ioutil"
 	"net/http"
 	"path"
-	"path/filepath"
 	"strings"
 
 	"github.com/codegangsta/martini"
@@ -55,8 +55,6 @@ type Render interface {
 	Error(status int)
 	// Redirect is a convienience function that sends an HTTP redirect. If status is omitted, uses 302 (Found)
 	Redirect(location string, status ...int)
-	// Template returns the internal *template.Template used to render the HTML
-	Template() *template.Template
 }
 
 // Delims represents a set of Left and Right delimiters for HTML template rendering
@@ -73,8 +71,6 @@ type Options struct {
 	Directory string
 	// Layout template name. Will not render a layout if "". Defaults to "".
 	Layout string
-	// Extensions to parse template files from. Defaults to [".tmpl"]
-	Extensions []string
 	// Funcs is a slice of FuncMaps to apply to the template upon compilation. This is useful for helper functions. Defaults to [].
 	Funcs []template.FuncMap
 	// Delims sets the action delimiters to the specified strings in the Delims struct.
@@ -124,9 +120,6 @@ func prepareOptions(options []Options) Options {
 	if len(opt.Directory) == 0 {
 		opt.Directory = "templates"
 	}
-	if len(opt.Extensions) == 0 {
-		opt.Extensions = []string{".tmpl"}
-	}
 
 	return opt
 }
@@ -162,38 +155,45 @@ func (r *renderer) JSON(status int, v interface{}) {
 func (r *renderer) HTML(status int, name string, binding interface{}, htmlOpt ...HTMLOptions) {
 	opt := r.prepareHTMLOptions(htmlOpt)
 	dir := r.opt.Directory
-
 	paths := make([]string, 0)
 
+	exepath := path.Join(dir, name)
+
 	if len(opt.Layout) > 0 {
-		fulllayout := path.Clean(filepath.ToSlash(path.Join(dir, opt.Layout)))
-		paths = append(paths, fulllayout)
+		paths = append(paths, path.Join(dir, opt.Layout))
+		exepath = path.Join(dir, opt.Layout)
 	}
 
-	fullname := path.Clean(filepath.ToSlash(path.Join(dir, name)))
-	paths = append(paths, fullname)
-
+	paths = append(paths, path.Join(dir, name))
 	key := strings.Join(paths, "_")
+
 	t, ok := r.tmpls[key]
 	if !ok {
-		// 设置分隔符
+		t = template.New(key)
 		t.Delims(r.opt.Delims.Left, r.opt.Delims.Right)
 
-		// 添加options中的funcs
-		for _, funcs := range r.opt.Funcs {
-			t.Funcs(funcs)
+		for _, path := range paths {
+			buf, err := ioutil.ReadFile(path)
+			if err != nil {
+				panic(err)
+			}
+
+			tmpl := t.New(path)
+
+			for _, funcs := range r.opt.Funcs {
+				tmpl.Funcs(funcs)
+			}
+
+			template.Must(tmpl.Parse(string(buf)))
 		}
 
-		t = template.Must(t.ParseFiles(paths...))
-
-		//生产上将编译好的template缓存起来
 		if martini.Env == martini.Prod {
 			r.tmpls[key] = t
 		}
 	}
 
 	buf := new(bytes.Buffer)
-	err := t.Execute(buf, binding)
+	err := t.ExecuteTemplate(buf, exepath, binding)
 	if err != nil {
 		http.Error(r, err.Error(), http.StatusInternalServerError)
 		return
