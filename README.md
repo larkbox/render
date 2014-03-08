@@ -3,10 +3,11 @@ Martini middleware/handler for easily rendering serialized JSON and HTML templat
 
 [API Reference](http://godoc.org/github.com/martini-contrib/render)
 ## Hacked
-对martini-contrib的render进行了改造，进而支持下面这种模板继承的方式。同时删除了yield和extensions。具体请看下面的介绍：
+对martini-contrib的render进行了改造，支持模板继承的方式。同时删除了yield和extensions。具体请看介绍：
 ## Usage
 render uses Go's [html/template](http://golang.org/pkg/html/template/) package to render html templates.
 
+###直接渲染hello.tmpl
 ~~~ go
 // main.go
 package main
@@ -35,6 +36,7 @@ func main() {
 <h2>Hello {{.}}!</h2>
 ~~~
 
+###layout.tmpl作为hello.tmpl的基础模板
 ~~~ go
 // main.go
 package main
