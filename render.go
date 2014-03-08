@@ -151,17 +151,13 @@ func (r *renderer) JSON(status int, v interface{}) {
 	r.Write(result)
 }
 
-// r.HTML(200, "work", "jeremy")
 func (r *renderer) HTML(status int, name string, binding interface{}, htmlOpt ...HTMLOptions) {
 	opt := r.prepareHTMLOptions(htmlOpt)
 	dir := r.opt.Directory
 	paths := make([]string, 0)
 
-	exepath := path.Join(dir, name)
-
 	if len(opt.Layout) > 0 {
 		paths = append(paths, path.Join(dir, opt.Layout))
-		exepath = path.Join(dir, opt.Layout)
 	}
 
 	paths = append(paths, path.Join(dir, name))
@@ -179,11 +175,9 @@ func (r *renderer) HTML(status int, name string, binding interface{}, htmlOpt ..
 			}
 
 			tmpl := t.New(path)
-
 			for _, funcs := range r.opt.Funcs {
 				tmpl.Funcs(funcs)
 			}
-
 			template.Must(tmpl.Parse(string(buf)))
 		}
 
@@ -193,7 +187,7 @@ func (r *renderer) HTML(status int, name string, binding interface{}, htmlOpt ..
 	}
 
 	buf := new(bytes.Buffer)
-	err := t.ExecuteTemplate(buf, exepath, binding)
+	err := t.ExecuteTemplate(buf, paths[0], binding)
 	if err != nil {
 		http.Error(r, err.Error(), http.StatusInternalServerError)
 		return

@@ -2,7 +2,8 @@
 Martini middleware/handler for easily rendering serialized JSON and HTML template responses.
 
 [API Reference](http://godoc.org/github.com/martini-contrib/render)
-
+## Hacked
+对martini-contrib的render进行了改造，进而支持下面这种模板继承的方式。同时删除了yield和extensions。具体请看下面的介绍：
 ## Usage
 render uses Go's [html/template](http://golang.org/pkg/html/template/) package to render html templates.
 
@@ -21,7 +22,7 @@ func main() {
   m.Use(render.Renderer())
 
   m.Get("/", func(r render.Render) {
-    r.HTML(200, "hello", "jeremy")
+    r.HTML(200, "hello.tmpl", "jeremy")
   })
 
   m.Run()
@@ -34,6 +35,54 @@ func main() {
 <h2>Hello {{.}}!</h2>
 ~~~
 
+~~~ go
+// main.go
+package main
+
+import (
+  "github.com/codegangsta/martini"
+  "github.com/martini-contrib/render"
+)
+
+func main() {
+  m := martini.Classic()
+  // render html templates from templates directory
+  m.Use(Renderer(Options{
+	 Layout:    "layout.tmpl",
+  }))
+  
+
+  m.Get("/", func(r render.Render) {
+    r.HTML(200, "hello.tmpl", "jeremy")
+  })
+
+  m.Run()
+}
+
+~~~
+
+~~~ html
+<!-- templates/hello.tmpl -->
+{{define "header"}}
+	header
+{{end}}
+
+{{define "content"}}
+	content
+{{end}}
+
+{{define "footer"}}
+	footer
+{{end}}
+~~~
+~~~ html
+<!-- templates/layout.tmpl -->
+{{template "header" .}}
+{{template "content" .}}
+{{template "footer" .}}
+~~~
+
+
 ### Options
 `render.Renderer` comes with a variety of configuration options:
 
@@ -42,7 +91,6 @@ func main() {
 m.Use(render.Renderer(render.Options{
   Directory: "templates", // Specify what path to load the templates from.
   Layout: "layout", // Specify a layout template. Layouts can call {{ yield }} to render the current template.
-  Extensions: []string{".tmpl", ".html"}, // Specify extensions to load for templates.
   Funcs: []template.FuncMap{AppHelpers}, // Specify helper function maps for templates to access.
   Delims: render.Delims{"{[{", "}]}"}, // Sets delimiters to the specified strings.
   Charset: "UTF-8", // Sets encoding for json and html content-types. Default is "UTF-8".
@@ -51,48 +99,61 @@ m.Use(render.Renderer(render.Options{
 // ...
 ~~~
 
-### Loading Templates
-By default the `render.Renderer` middleware will attempt to load templates with a '.tmpl' extension from the "templates" directory. Templates are found by traversing the templates directory and are named by path and basename. For instance, the following directory structure:
-
-~~~
-templates/
-  |
-  |__ admin/
-  |      |
-  |      |__ index.tmpl
-  |      |
-  |      |__ edit.tmpl
-  |
-  |__ home.tmpl
+### Cached template
+生产环境下，将解析过的template缓存起来
+~~~go
+	if martini.Env == martini.Prod {
+			r.tmpls[key] = t
+		}
 ~~~
 
-Will provide the following templates:
-~~~
-admin/index
-admin/edit
-home
-~~~
 ### Layouts
-`render.Renderer` provides a `yield` function for layouts to access:
+layout作为基准模板:
 ~~~ go
-// ...
-m.Use(render.Renderer(render.Options{
-  Layout: "layout",
-}))
-// ...
+// main.go
+package main
+
+import (
+  "github.com/codegangsta/martini"
+  "github.com/martini-contrib/render"
+)
+
+func main() {
+  m := martini.Classic()
+  // render html templates from templates directory
+  m.Use(Renderer(Options{
+	 Layout:    "layout.tmpl",
+  }))
+  
+
+  m.Get("/", func(r render.Render) {
+    r.HTML(200, "hello.tmpl", "jeremy")
+  })
+
+  m.Run()
+}
+
 ~~~
 
 ~~~ html
+<!-- templates/hello.tmpl -->
+{{define "header"}}
+	header
+{{end}}
+
+{{define "content"}}
+	content
+{{end}}
+
+{{define "footer"}}
+	footer
+{{end}}
+~~~
+~~~ html
 <!-- templates/layout.tmpl -->
-<html>
-  <head>
-    <title>Martini Plz</title>
-  </head>
-  <body>
-    <!-- Render the current template here -->
-    {{ yield }}
-  </body>
-</html>
+{{template "header" .}}
+{{template "content" .}}
+{{template "footer" .}}
 ~~~
 
 ### Character Encodings
@@ -112,7 +173,7 @@ func main() {
 
   // This will set the Content-Type header to "text/html; charset=UTF-8"
   m.Get("/", func(r render.Render) {
-    r.HTML(200, "hello", "world")
+    r.HTML(200, "hello.tmpl", "world")
   })
 
   // This will set the Content-Type header to "application/json; charset=UTF-8"
@@ -143,7 +204,7 @@ func main() {
 
   // This is set the Content-Type to "text/html; charset=ISO-8859-1"
   m.Get("/", func(r render.Render) {
-    r.HTML(200, "hello", "world")
+    r.HTML(200, "hello.tmpl", "world")
   })
 
   // This is set the Content-Type to "application/json; charset=ISO-8859-1"
@@ -159,3 +220,4 @@ func main() {
 ## Authors
 * [Jeremy Saenz](http://github.com/codegangsta)
 * [Cory Jacobsen](http://github.com/cojac)
+* [larkyang](http://github.com/rnoldo)
