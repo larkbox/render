@@ -70,7 +70,7 @@ func main() {
 {{end}}
 
 {{define "content"}}
-	content
+	<h2>Hello {{.}}!</h2>
 {{end}}
 
 {{define "footer"}}
@@ -107,55 +107,6 @@ m.Use(render.Renderer(render.Options{
 	if martini.Env == martini.Prod {
 			r.tmpls[key] = t
 		}
-~~~
-
-### Layouts
-layout作为基准模板:
-~~~ go
-// main.go
-package main
-
-import (
-  "github.com/codegangsta/martini"
-  "github.com/martini-contrib/render"
-)
-
-func main() {
-  m := martini.Classic()
-  // render html templates from templates directory
-  m.Use(Renderer(Options{
-	 Layout:    "layout.tmpl",
-  }))
-  
-
-  m.Get("/", func(r render.Render) {
-    r.HTML(200, "hello.tmpl", "jeremy")
-  })
-
-  m.Run()
-}
-
-~~~
-
-~~~ html
-<!-- templates/hello.tmpl -->
-{{define "header"}}
-	header
-{{end}}
-
-{{define "content"}}
-	content
-{{end}}
-
-{{define "footer"}}
-	footer
-{{end}}
-~~~
-~~~ html
-<!-- templates/layout.tmpl -->
-{{template "header" .}}
-{{template "content" .}}
-{{template "footer" .}}
 ~~~
 
 ### Character Encodings
